@@ -1,0 +1,83 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+const char* ssid = "Galaxy A13 D578";        
+const char* password = "jithu1244"; 
+String BOT_TOKEN = "8315630605:AAEs3lTuV3_4PykzMQxUL4rnqvmKr3eX328";  
+String CHAT_ID = "1451370331";      
+
+//Ultrasonic Sensor Pins
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+
+//Tank Height in cm
+const int TANK_HEIGHT = 10;
+
+//Function to Send Telegram Message
+void sendTelegramMessage(String message) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String url = "https://api.telegram.org/bot8315630605:AAEs3lTuV3_4PykzMQxUL4rnqvmKr3eX328/sendMessage?chat_id=1451370331&text="+message;
+    http.begin(url);
+    int httpResponseCode = http.GET();
+    if (httpResponseCode == 200) {
+      Serial.println("Telegram message sent successfully.");
+    } else {
+      Serial.print("Error sending message. HTTP code: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+  }
+}
+
+//Measure Distance
+long getDistanceCM() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  long distance = duration * 0.034 / 2; 
+  return distance;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  //Connect to WiFi
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n Connected to WiFi");
+}
+
+void loop() {
+  long distance = getDistanceCM();
+  int waterLevel = TANK_HEIGHT - distance;  
+  int percent = map(waterLevel, 0, TANK_HEIGHT, 0, 100);
+
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+
+  Serial.print("Water Level: ");
+  Serial.print(percent);
+  Serial.println("%");
+
+  if (percent >= 60) {
+    Serial.print("tank is full");
+    sendTelegramMessage("🚨 ALERT: Tank is FULL!");
+  }
+  else if (percent <= 20 && percent >=0) {
+    Serial.print("tank empty");
+    sendTelegramMessage("⚠️ ALERT: Tank is LOW!");
+  }
+
+  delay(3000);
+}
